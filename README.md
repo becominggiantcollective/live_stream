@@ -77,6 +77,13 @@ Environment file for sensitive data:
 python main.py
 ```
 
+### Run Example
+
+```bash
+# Run the example with sample videos
+python example.py
+```
+
 ### Monitor Streams
 
 ```bash
