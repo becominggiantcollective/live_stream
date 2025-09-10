@@ -1,0 +1,39 @@
+{
+  "odysee": {
+    "playlist_urls": [
+      "https://odysee.com/$/playlist/your-playlist-id"
+    ],
+    "api_base_url": "https://api.odysee.com"
+  },
+  "obs": {
+    "websocket_host": "localhost",
+    "websocket_port": 4455,
+    "websocket_password": ""
+  },
+  "streaming": {
+    "platforms": {
+      "rumble": {
+        "enabled": true,
+        "rtmp_url": "rtmp://ingest.rumble.com/live/",
+        "stream_key": "YOUR_RUMBLE_STREAM_KEY"
+      },
+      "youtube": {
+        "enabled": false,
+        "rtmp_url": "rtmp://a.rtmp.youtube.com/live2/",
+        "stream_key": "YOUR_YOUTUBE_STREAM_KEY"
+      },
+      "twitch": {
+        "enabled": false,
+        "rtmp_url": "rtmp://live.twitch.tv/live/",
+        "stream_key": "YOUR_TWITCH_STREAM_KEY"
+      }
+    },
+    "reconnect_attempts": 5,
+    "reconnect_delay": 30,
+    "video_transition_delay": 2
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "livestream.log"
+  }
+}
