@@ -73,8 +73,14 @@ Environment file for sensitive data:
 ### Basic Streaming
 
 ```bash
+# Validate configuration first
+python main.py --validate-only
+
 # Start the streaming bot
 python main.py
+
+# Use verbose logging
+python main.py --verbose
 ```
 
 ### Run Example
@@ -94,8 +100,11 @@ python monitor.py
 ### Setup and Validation
 
 ```bash
-# Validate configuration and dependencies
+# Initial setup and validation
 python setup.py
+
+# Validate configuration only
+python main.py --validate-only
 ```
 
 ## Architecture
@@ -137,23 +146,57 @@ The bot consists of several key components:
 ### Common Issues
 
 1. **OBS Connection Failed**
-   - Ensure OBS is running
-   - Check WebSocket plugin is enabled
-   - Verify host/port/password in config
+   - Ensure OBS is running with WebSocket plugin enabled
+   - Check WebSocket host/port/password in config.json
+   - Default OBS WebSocket port is 4455 (was 4444 in older versions)
+   - The system will fall back to simulation mode if OBS is not available
 
 2. **Stream Connection Failed**
-   - Verify stream keys are correct
+   - Verify stream keys are correct and not placeholder values
    - Check network connectivity
    - Ensure RTMP URLs are correct for your region
+   - Use `python main.py --validate-only` to check configuration
 
 3. **No Videos Found**
-   - Verify Odysee playlist URLs are correct
-   - Check playlist is public
-   - Ensure internet connectivity
+   - Verify Odysee playlist URLs are correct and public
+   - Check internet connectivity for Odysee API access
+   - System will use sample videos if real API fails
+
+4. **Configuration Issues**
+   - Run `python setup.py` to validate your configuration
+   - Check that stream keys are set in .env file
+   - Ensure playlist URLs are real, not placeholder values
+
+### Command Line Options
+
+```bash
+# Validate configuration only
+python main.py --validate-only
+
+# Use custom config file
+python main.py --config my-config.json
+
+# Enable verbose logging
+python main.py --verbose
+
+# Get help
+python main.py --help
+```
 
 ### Logs
 
 Check `livestream.log` for detailed error messages and debugging information.
+
+## Recent Improvements
+
+### Version 2.0 Fixes
+
+- ✅ **Fixed OBS WebSocket Integration**: Now uses correct `obswebsocket` package
+- ✅ **Real Odysee API**: Implemented actual LBRY API calls with fallback
+- ✅ **Better Error Handling**: Graceful fallback to simulation mode
+- ✅ **Improved Validation**: Detailed configuration validation with specific error messages
+- ✅ **Stream Management**: Actual OBS RTMP configuration when connected
+- ✅ **CLI Interface**: Command line arguments for better usability
 
 ## Contributing
 

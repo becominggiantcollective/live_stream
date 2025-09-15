@@ -9,6 +9,7 @@ import asyncio
 import logging
 import json
 import os
+import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import List, Dict, Any
@@ -154,17 +155,65 @@ class LiveStreamBot:
 
 def main():
     """Main entry point."""
+    parser = argparse.ArgumentParser(description='Live Stream Automation Bot')
+    parser.add_argument('--config', '-c', default='config.json', 
+                        help='Path to configuration file (default: config.json)')
+    parser.add_argument('--validate-only', action='store_true',
+                        help='Only validate configuration and exit')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Enable verbose logging')
+    
+    args = parser.parse_args()
+    
+    # Set up logging level
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    
     try:
         # Check if config file exists
-        if not os.path.exists("config.json"):
-            print("Config file not found. Please copy config.json.example to config.json and configure it.")
-            return
-            
-        bot = LiveStreamBot()
-        asyncio.run(bot.start_streaming())
+        if not os.path.exists(args.config):
+            print(f"Config file not found: {args.config}")
+            print("Please copy config.json.example to config.json and configure it.")
+            print("Run 'python setup.py' to help with initial setup.")
+            return 1
         
+        # Validate configuration before starting
+        try:
+            from src.config_manager import ConfigManager
+            config = ConfigManager(args.config)
+            is_valid, issues = config.validate_config()
+            
+            if not is_valid:
+                print("Configuration validation failed:")
+                for issue in issues:
+                    print(f"  - {issue}")
+                print("\nPlease fix these issues before running the live stream bot.")
+                print("Run 'python setup.py' to validate your configuration.")
+                return 1
+            else:
+                print("✓ Configuration is valid")
+                
+            if args.validate_only:
+                print("Configuration validation completed successfully.")
+                return 0
+                
+        except Exception as e:
+            print(f"Error validating configuration: {e}")
+            return 1
+        
+        # Start the bot
+        print("Starting Live Stream Bot...")
+        bot = LiveStreamBot(args.config)
+        asyncio.run(bot.start_streaming())
+        return 0
+        
+    except KeyboardInterrupt:
+        print("\nShutdown requested by user")
+        return 0
     except Exception as e:
         print(f"Fatal error: {e}")
+        logging.exception("Fatal error occurred")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    exit(main())

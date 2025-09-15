@@ -274,15 +274,30 @@ class StreamManager:
         Returns:
             True if stream is healthy, False otherwise
         """
-        # In a real implementation, this would:
-        # 1. Check OBS streaming status
-        # 2. Monitor network connectivity
-        # 3. Check RTMP connection status
-        # 4. Monitor bitrate and dropped frames
-        
-        # For simulation, randomly return health status
-        import random
-        return random.random() > 0.1  # 90% chance of being healthy
+        try:
+            # In a real implementation, this would:
+            # 1. Check OBS streaming status
+            # 2. Monitor network connectivity
+            # 3. Check RTMP connection status
+            # 4. Monitor bitrate and dropped frames
+            
+            # Check if OBS is still connected and streaming
+            if self.obs_controller and self.obs_controller.connected:
+                try:
+                    # This would check actual OBS streaming status in a real implementation
+                    # For now, assume healthy if OBS is connected
+                    return True
+                except Exception as e:
+                    self.logger.warning(f"OBS health check failed: {e}")
+                    return False
+            else:
+                # For simulation mode, randomly return health status with high success rate
+                import random
+                return random.random() > 0.05  # 95% chance of being healthy
+            
+        except Exception as e:
+            self.logger.error(f"Error checking stream health: {e}")
+            return False
     
     async def _schedule_reconnect(self, platform_name: str):
         """Schedule a reconnection attempt for a platform.

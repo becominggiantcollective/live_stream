@@ -152,7 +152,7 @@ class ConfigManager:
                 stream_key = platform_config.get('stream_key', '')
                 if not stream_key:
                     issues.append(f"No stream key configured for {platform_name}")
-                elif stream_key.startswith('YOUR_') or stream_key.endswith('_here'):
+                elif stream_key.startswith('YOUR_') or stream_key.endswith('_here') or stream_key == 'your_rumble_stream_key_here':
                     issues.append(f"Placeholder stream key found for {platform_name} - please set real stream key")
                 
                 rtmp_url = platform_config.get('rtmp_url', '')
