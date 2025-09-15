@@ -6,7 +6,7 @@ Handles loading and managing configuration from JSON files and environment varia
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 from dotenv import load_dotenv
 
 class ConfigManager:
@@ -112,26 +112,60 @@ class ConfigManager:
         return {name: config for name, config in platforms.items() 
                 if config.get('enabled', False)}
     
-    def validate_config(self) -> bool:
+    def validate_config(self) -> Tuple[bool, List[str]]:
         """Validate configuration completeness.
+        
+        Returns:
+            Tuple of (is_valid, list_of_issues)
+        """
+        issues = []
+        
+        # Check required sections
+        required_sections = ['odysee', 'obs', 'streaming']
+        for section in required_sections:
+            if section not in self.config_data:
+                issues.append(f"Missing required configuration section: {section}")
+        
+        # Check Odysee configuration
+        odysee_config = self.get('odysee', {})
+        playlist_urls = odysee_config.get('playlist_urls', [])
+        if not playlist_urls:
+            issues.append("No Odysee playlist URLs configured")
+        else:
+            for url in playlist_urls:
+                if url == "https://odysee.com/$/playlist/your-playlist-id":
+                    issues.append("Please replace placeholder Odysee playlist URL with real URL")
+        
+        # Check OBS configuration
+        obs_config = self.get('obs', {})
+        if not obs_config.get('websocket_host'):
+            issues.append("OBS WebSocket host not configured")
+        if not obs_config.get('websocket_port'):
+            issues.append("OBS WebSocket port not configured")
+        
+        # Check streaming platforms
+        enabled_platforms = self.get_enabled_platforms()
+        if not enabled_platforms:
+            issues.append("No streaming platforms enabled")
+        else:
+            for platform_name, platform_config in enabled_platforms.items():
+                stream_key = platform_config.get('stream_key', '')
+                if not stream_key:
+                    issues.append(f"No stream key configured for {platform_name}")
+                elif stream_key.startswith('YOUR_') or stream_key.endswith('_here'):
+                    issues.append(f"Placeholder stream key found for {platform_name} - please set real stream key")
+                
+                rtmp_url = platform_config.get('rtmp_url', '')
+                if not rtmp_url:
+                    issues.append(f"No RTMP URL configured for {platform_name}")
+        
+        return len(issues) == 0, issues
+    
+    def validate_config_legacy(self) -> bool:
+        """Legacy validation method for backward compatibility.
         
         Returns:
             True if configuration is valid, False otherwise
         """
-        required_sections = ['odysee', 'obs', 'streaming']
-        
-        for section in required_sections:
-            if section not in self.config_data:
-                return False
-        
-        # Check if at least one platform is enabled
-        enabled_platforms = self.get_enabled_platforms()
-        if not enabled_platforms:
-            return False
-        
-        # Check if all enabled platforms have stream keys
-        for platform_name, platform_config in enabled_platforms.items():
-            if not platform_config.get('stream_key'):
-                return False
-        
-        return True
+        is_valid, _ = self.validate_config()
+        return is_valid

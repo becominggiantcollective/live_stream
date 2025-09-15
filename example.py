@@ -63,14 +63,14 @@ async def run_example():
         
         # Initialize OBS controller
         obs_controller = OBSController(config)
-        if await obs_controller.connect():
-            logger.info("Connected to OBS (or simulated)")
+        connected = await obs_controller.connect()
+        if connected:
+            logger.info("Connected to OBS")
         else:
-            logger.error("Failed to connect to OBS")
-            return
+            logger.warning("Could not connect to OBS - will run in simulation mode")
         
         # Initialize stream manager
-        stream_manager = StreamManager(config)
+        stream_manager = StreamManager(config, obs_controller)
         logger.info("Stream manager initialized")
         
         # Show stream status

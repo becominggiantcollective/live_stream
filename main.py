@@ -31,7 +31,7 @@ class LiveStreamBot:
         
         self.odysee_client = OdyseeClient(self.config)
         self.obs_controller = OBSController(self.config)
-        self.stream_manager = StreamManager(self.config)
+        self.stream_manager = StreamManager(self.config, self.obs_controller)
         self.video_queue = VideoQueue()
         
         self.running = False
@@ -57,8 +57,10 @@ class LiveStreamBot:
         try:
             self.logger.info("Initializing Live Stream Bot...")
             
-            # Connect to OBS
-            await self.obs_controller.connect()
+            # Connect to OBS (gracefully handle failure)
+            connected = await self.obs_controller.connect()
+            if not connected:
+                self.logger.warning("Could not connect to OBS - streaming will be simulated")
             
             # Load playlists
             await self.load_playlists()

@@ -25,8 +25,8 @@ async def monitor_streams():
         print("Live Stream Monitor")
         print("=" * 50)
         
-        # Load stream configurations
-        stream_manager.load_stream_configs()
+        # Stream manager loads configs automatically on init
+        # stream_manager.load_stream_configs()
         
         while True:
             # Get stream status

@@ -32,13 +32,15 @@ class StreamInfo:
 class StreamManager:
     """Manages streaming to multiple platforms."""
     
-    def __init__(self, config_manager):
+    def __init__(self, config_manager, obs_controller=None):
         """Initialize stream manager.
         
         Args:
             config_manager: Configuration manager instance
+            obs_controller: OBS controller instance (optional)
         """
         self.config = config_manager
+        self.obs_controller = obs_controller
         self.logger = logging.getLogger(__name__)
         
         # Stream configuration
@@ -121,11 +123,26 @@ class StreamManager:
             if not stream_info.rtmp_url or not stream_info.stream_key:
                 raise ValueError(f"Missing RTMP URL or stream key for {platform_name}")
             
-            # In a real implementation, this would configure OBS for this specific platform
-            # and start the actual streaming process
-            
-            # For now, we simulate the streaming process
-            success = await self._simulate_stream_start(stream_info)
+            # Configure OBS for this platform if OBS controller is available
+            if self.obs_controller and self.obs_controller.connected:
+                # Set stream settings in OBS
+                platform_config = {
+                    'rtmp_url': stream_info.rtmp_url,
+                    'stream_key': stream_info.stream_key
+                }
+                
+                if not await self.obs_controller.set_stream_settings(platform_config):
+                    raise Exception(f"Failed to configure OBS stream settings for {platform_name}")
+                
+                # Start streaming in OBS
+                if not await self.obs_controller.start_streaming():
+                    raise Exception(f"Failed to start OBS streaming for {platform_name}")
+                
+                success = True
+            else:
+                # Fallback to simulation if OBS is not available
+                self.logger.warning(f"OBS not available, simulating stream to {platform_name}")
+                success = await self._simulate_stream_start(stream_info)
             
             if success:
                 stream_info.status = StreamStatus.STREAMING
@@ -202,8 +219,13 @@ class StreamManager:
                     task.cancel()
                 del self.reconnect_tasks[platform_name]
             
-            # In a real implementation, this would stop the actual stream
-            await self._simulate_stream_stop(stream_info)
+            # Stop OBS streaming if OBS controller is available
+            if self.obs_controller and self.obs_controller.connected:
+                if not await self.obs_controller.stop_streaming():
+                    self.logger.warning(f"Failed to stop OBS streaming for {platform_name}")
+            else:
+                # Fallback to simulation
+                await self._simulate_stream_stop(stream_info)
             
             stream_info.status = StreamStatus.STOPPED
             stream_info.last_error = None

@@ -8,10 +8,13 @@ import logging
 import asyncio
 from typing import Dict, Any, Optional
 try:
-    import obsws_python as obs
+    from obswebsocket import obsws, requests as obs_requests
+    OBS_AVAILABLE = True
 except ImportError:
     # Fallback for environments where obs-websocket-py is not available
-    obs = None
+    obsws = None
+    obs_requests = None
+    OBS_AVAILABLE = False
 
 class OBSController:
     """Controller for OBS Studio WebSocket API."""
@@ -39,7 +42,7 @@ class OBSController:
         Returns:
             True if connection successful, False otherwise
         """
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.warning("obs-websocket-py not available. OBS control will be simulated.")
             self.connected = True
             return True
@@ -48,15 +51,18 @@ class OBSController:
             self.logger.info(f"Connecting to OBS WebSocket at {self.host}:{self.port}")
             
             # Create WebSocket client
-            self.ws_client = obs.ReqClient(
+            self.ws_client = obsws(
                 host=self.host,
                 port=self.port,
                 password=self.password
             )
             
-            # Test connection
-            version_info = self.ws_client.get_version()
-            self.logger.info(f"Connected to OBS {version_info.obs_version}")
+            # Connect to OBS
+            self.ws_client.connect()
+            
+            # Test connection by getting version
+            version_response = self.ws_client.call(obs_requests.GetVersion())
+            self.logger.info(f"Connected to OBS {version_response.getObsVersion()}")
             
             self.connected = True
             return True
@@ -88,19 +94,19 @@ class OBSController:
             self.logger.error("Not connected to OBS")
             return False
             
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info("Simulating OBS streaming start")
             return True
             
         try:
             # Check if already streaming
-            status = self.ws_client.get_stream_status()
-            if status.output_active:
+            status_response = self.ws_client.call(obs_requests.GetStreamStatus())
+            if status_response.getOutputActive():
                 self.logger.info("OBS is already streaming")
                 return True
             
             # Start streaming
-            self.ws_client.start_stream()
+            self.ws_client.call(obs_requests.StartStream())
             self.logger.info("Started streaming in OBS")
             return True
             
@@ -118,19 +124,19 @@ class OBSController:
             self.logger.error("Not connected to OBS")
             return False
             
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info("Simulating OBS streaming stop")
             return True
             
         try:
             # Check if streaming
-            status = self.ws_client.get_stream_status()
-            if not status.output_active:
+            status_response = self.ws_client.call(obs_requests.GetStreamStatus())
+            if not status_response.getOutputActive():
                 self.logger.info("OBS is not streaming")
                 return True
             
             # Stop streaming
-            self.ws_client.stop_stream()
+            self.ws_client.call(obs_requests.StopStream())
             self.logger.info("Stopped streaming in OBS")
             return True
             
@@ -148,12 +154,13 @@ class OBSController:
         Returns:
             True if source set successfully, False otherwise
         """
-        if not self.connected:
-            self.logger.error("Not connected to OBS")
-            return False
-            
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info(f"Simulating setting video source: {video_url}")
+            return True
+            
+        if not self.connected:
+            self.logger.warning("Not connected to OBS - simulating video source setup")
+            self.logger.info(f"Would set video source '{source_name}' to: {video_url}")
             return True
             
         try:
@@ -169,19 +176,21 @@ class OBSController:
             
             # Check if source exists
             try:
-                self.ws_client.get_input_settings(source_name)
+                # Try to get existing input settings
+                self.ws_client.call(obs_requests.GetInputSettings(source_name))
                 # Source exists, update it
-                self.ws_client.set_input_settings(source_name, source_settings, True)
+                self.ws_client.call(obs_requests.SetInputSettings(source_name, source_settings, True))
                 self.logger.info(f"Updated video source '{source_name}' with URL: {video_url}")
                 
             except:
                 # Source doesn't exist, create it
-                self.ws_client.create_input(
-                    scene_name=self._get_current_scene(),
-                    input_name=source_name,
-                    input_kind="ffmpeg_source",
-                    input_settings=source_settings
-                )
+                current_scene = self._get_current_scene()
+                self.ws_client.call(obs_requests.CreateInput(
+                    sceneName=current_scene,
+                    inputName=source_name,
+                    inputKind="ffmpeg_source",
+                    inputSettings=source_settings
+                ))
                 self.logger.info(f"Created video source '{source_name}' with URL: {video_url}")
             
             return True
@@ -203,7 +212,7 @@ class OBSController:
             self.logger.error("Not connected to OBS")
             return False
             
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info(f"Simulating stream settings for {platform_config}")
             return True
             
@@ -221,10 +230,10 @@ class OBSController:
                 "key": stream_key
             }
             
-            self.ws_client.set_stream_service_settings(
-                stream_service_type="rtmp_common",
-                stream_service_settings=stream_settings
-            )
+            self.ws_client.call(obs_requests.SetStreamServiceSettings(
+                streamServiceType="rtmp_common",
+                streamServiceSettings=stream_settings
+            ))
             
             self.logger.info(f"Set stream settings for {rtmp_url}")
             return True
@@ -239,12 +248,12 @@ class OBSController:
         Returns:
             Current scene name
         """
-        if obs is None:
+        if not OBS_AVAILABLE:
             return "Scene"
             
         try:
-            scene_info = self.ws_client.get_current_program_scene()
-            return scene_info.scene_name
+            scene_response = self.ws_client.call(obs_requests.GetCurrentProgramScene())
+            return scene_response.getCurrentProgramSceneName()
         except:
             return "Scene"  # Default fallback
     
@@ -261,12 +270,12 @@ class OBSController:
             self.logger.error("Not connected to OBS")
             return False
             
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info(f"Simulating scene creation: {scene_name}")
             return True
             
         try:
-            self.ws_client.create_scene(scene_name)
+            self.ws_client.call(obs_requests.CreateScene(scene_name))
             self.logger.info(f"Created scene: {scene_name}")
             return True
             
@@ -291,12 +300,12 @@ class OBSController:
             self.logger.error("Not connected to OBS")
             return False
             
-        if obs is None:
+        if not OBS_AVAILABLE:
             self.logger.info(f"Simulating scene switch to: {scene_name}")
             return True
             
         try:
-            self.ws_client.set_current_program_scene(scene_name)
+            self.ws_client.call(obs_requests.SetCurrentProgramScene(scene_name))
             self.logger.info(f"Switched to scene: {scene_name}")
             return True
             

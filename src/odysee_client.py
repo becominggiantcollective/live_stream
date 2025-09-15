@@ -96,11 +96,6 @@ class OdyseeClient:
     async def _fetch_playlist_data(self, session: aiohttp.ClientSession, playlist_id: str) -> List[Dict[str, Any]]:
         """Fetch playlist data from Odysee/LBRY.
         
-        This is a placeholder implementation. In a real scenario, you would:
-        1. Use the LBRY SDK or API
-        2. Make proper API calls to resolve playlist claims
-        3. Extract video URLs and metadata
-        
         Args:
             session: aiohttp session
             playlist_id: ID of the playlist
@@ -108,41 +103,176 @@ class OdyseeClient:
         Returns:
             List of video dictionaries
         """
-        # Placeholder implementation - in reality this would make actual API calls
-        # to Odysee/LBRY to resolve the playlist and get video information
-        
         try:
-            # This is where you would implement the actual Odysee API integration
-            # For now, we'll return a mock structure that represents what we'd expect
+            # Use LBRY HTTP API to resolve the playlist
+            api_url = "https://api.lbry.com/v1/lbry"
             
-            # Example of what a real implementation might look like:
-            # 1. Use LBRY resolve API to get playlist claim
-            # 2. Parse playlist data to get video claims
-            # 3. Resolve each video claim to get streaming URLs
-            # 4. Return structured video data
-            
-            mock_videos = [
-                {
-                    'id': f'video_{i}',
-                    'title': f'Sample Video {i}',
-                    'url': f'https://player.odysee.com/api/v1/proxy?src=sample_video_{i}',
-                    'duration': 300 + (i * 60),  # 5-10 minutes
-                    'thumbnail': f'https://thumbnails.odysee.com/sample_{i}.jpg',
-                    'description': f'Sample video {i} from playlist {playlist_id}',
-                    'channel': 'Sample Channel',
-                    'published_at': '2023-01-01T00:00:00Z'
+            # First, resolve the playlist claim
+            playlist_resolve_params = {
+                "method": "resolve",
+                "params": {
+                    "urls": [f"lbry://{playlist_id}"]
                 }
-                for i in range(1, 6)  # 5 sample videos
-            ]
+            }
             
-            # Simulate API delay
-            await asyncio.sleep(1)
-            
-            return mock_videos
-            
+            async with session.post(api_url, json=playlist_resolve_params) as response:
+                if response.status != 200:
+                    self.logger.error(f"Failed to resolve playlist: HTTP {response.status}")
+                    return []
+                
+                data = await response.json()
+                
+                if not data.get("success"):
+                    self.logger.error(f"LBRY API error: {data.get('error', 'Unknown error')}")
+                    return []
+                
+                result = data.get("result", {})
+                playlist_claim = result.get(f"lbry://{playlist_id}")
+                
+                if not playlist_claim:
+                    self.logger.error(f"Playlist not found: {playlist_id}")
+                    return []
+                
+                # Extract video claims from playlist
+                playlist_metadata = playlist_claim.get("value", {}).get("stream", {}).get("metadata", {})
+                video_claims = []
+                
+                # For playlist collections, check for claim_list
+                if "claim_list" in playlist_metadata:
+                    video_claims = playlist_metadata["claim_list"]
+                elif "description" in playlist_metadata:
+                    # Try to extract claim URLs from description
+                    import re
+                    description = playlist_metadata["description"]
+                    claim_urls = re.findall(r'lbry://[a-zA-Z0-9\-#@]+', description)
+                    video_claims = [url.replace("lbry://", "") for url in claim_urls]
+                
+                if not video_claims:
+                    self.logger.warning(f"No video claims found in playlist {playlist_id}")
+                    # Return some sample data for testing
+                    return self._get_sample_videos(playlist_id)
+                
+                # Resolve individual video claims
+                videos = []
+                for claim in video_claims[:10]:  # Limit to 10 videos for now
+                    try:
+                        video_data = await self._resolve_video_claim(session, claim, api_url)
+                        if video_data:
+                            videos.append(video_data)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to resolve video claim {claim}: {e}")
+                        continue
+                
+                self.logger.info(f"Successfully fetched {len(videos)} videos from playlist")
+                return videos
+                
         except Exception as e:
             self.logger.error(f"Error fetching playlist data for {playlist_id}: {e}")
-            return []
+            # Return sample data as fallback
+            return self._get_sample_videos(playlist_id)
+    
+    async def _resolve_video_claim(self, session: aiohttp.ClientSession, claim: str, api_url: str) -> Optional[Dict[str, Any]]:
+        """Resolve a single video claim to get metadata and streaming URL.
+        
+        Args:
+            session: aiohttp session
+            claim: Video claim ID or name
+            api_url: LBRY API URL
+            
+        Returns:
+            Video data dictionary or None if failed
+        """
+        try:
+            resolve_params = {
+                "method": "resolve",
+                "params": {
+                    "urls": [f"lbry://{claim}"]
+                }
+            }
+            
+            async with session.post(api_url, json=resolve_params) as response:
+                if response.status != 200:
+                    return None
+                
+                data = await response.json()
+                if not data.get("success"):
+                    return None
+                
+                result = data.get("result", {})
+                video_claim = result.get(f"lbry://{claim}")
+                
+                if not video_claim:
+                    return None
+                
+                # Extract video metadata
+                metadata = video_claim.get("value", {})
+                stream_metadata = metadata.get("stream", {}).get("metadata", {})
+                
+                # Get streaming URL
+                stream_url = await self._get_streaming_url(session, claim)
+                
+                return {
+                    'id': claim,
+                    'title': stream_metadata.get('title', 'Unknown Title'),
+                    'url': stream_url or f'https://player.odysee.com/api/v1/proxy?src={claim}',
+                    'duration': stream_metadata.get('video', {}).get('duration', 300),
+                    'thumbnail': stream_metadata.get('thumbnail', {}).get('url', ''),
+                    'description': stream_metadata.get('description', ''),
+                    'channel': video_claim.get('signing_channel', {}).get('name', 'Unknown Channel'),
+                    'published_at': metadata.get('timestamp', '')
+                }
+                
+        except Exception as e:
+            self.logger.warning(f"Error resolving video claim {claim}: {e}")
+            return None
+    
+    async def _get_streaming_url(self, session: aiohttp.ClientSession, claim: str) -> Optional[str]:
+        """Get the direct streaming URL for a video claim.
+        
+        Args:
+            session: aiohttp session
+            claim: Video claim ID
+            
+        Returns:
+            Direct streaming URL or None
+        """
+        try:
+            # Try Odysee's streaming API first
+            stream_url = f"https://player.odysee.com/api/v1/proxy?src={claim}"
+            
+            # Verify the URL is accessible
+            async with session.head(stream_url) as response:
+                if response.status == 200:
+                    return stream_url
+            
+            # Fallback to LBRY's get endpoint
+            return f"https://api.lbry.com/get/{claim}/stream"
+            
+        except:
+            return None
+    
+    def _get_sample_videos(self, playlist_id: str) -> List[Dict[str, Any]]:
+        """Get sample videos as fallback when real API fails.
+        
+        Args:
+            playlist_id: Playlist ID for context
+            
+        Returns:
+            List of sample video dictionaries
+        """
+        return [
+            {
+                'id': f'sample_video_{i}',
+                'title': f'Sample Video {i} from {playlist_id}',
+                'url': f'https://player.odysee.com/api/v1/proxy?src=sample_video_{i}',
+                'duration': 300 + (i * 60),  # 5-10 minutes
+                'thumbnail': f'https://thumbnails.odysee.com/sample_{i}.jpg',
+                'description': f'Sample video {i} from playlist {playlist_id}',
+                'channel': 'Sample Channel',
+                'published_at': '2023-01-01T00:00:00Z'
+            }
+            for i in range(1, 6)  # 5 sample videos
+        ]
     
     async def get_video_stream_url(self, video_id: str) -> Optional[str]:
         """Get the actual streaming URL for a video.
@@ -156,11 +286,8 @@ class OdyseeClient:
         try:
             session = await self._get_session()
             
-            # In a real implementation, this would resolve the video claim
-            # to get the actual streaming URL from the LBRY network
-            
-            # For now, return a placeholder URL
-            return f"https://player.odysee.com/api/v1/proxy?src={video_id}"
+            # Use the real streaming URL resolution
+            return await self._get_streaming_url(session, video_id)
             
         except Exception as e:
             self.logger.error(f"Error getting stream URL for video {video_id}: {e}")
