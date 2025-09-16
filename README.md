@@ -2,6 +2,18 @@
 
 An automated live streaming bot that fetches videos from Odysee playlists and streams them to multiple platforms (Rumble, YouTube, Twitch) using OBS Studio and RTMP.
 
+## 🤖 NEW: AI Agent Team Integration
+
+**This repository now supports AI-powered enhancements!** See [AI_BENEFITS_SUMMARY.md](AI_BENEFITS_SUMMARY.md) for a comprehensive analysis of how AI agents can enhance streaming performance.
+
+### AI Features
+- 🎯 **Intelligent Content Curation**: AI-powered video analysis and playlist optimization
+- 📊 **Real-Time Quality Monitoring**: Automated stream quality assessment and optimization
+- 🔄 **Autonomous Decision Making**: Smart conflict resolution and adaptive strategies
+- 📈 **Performance Learning**: Continuous improvement from streaming data
+
+**Try the AI-enhanced version**: `python ai_enhanced_example.py`
+
 ## Features
 
 - 🎬 **Odysee Integration**: Automatically fetch videos from Odysee playlists
