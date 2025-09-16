@@ -43,36 +43,24 @@ def validate_config():
     print("\nValidating configuration...")
     
     try:
-        with open("config.json", "r") as f:
-            config = json.load(f)
+        from src.config_manager import ConfigManager
+        config = ConfigManager("config.json")
         
-        # Check required sections
-        required_sections = ["odysee", "obs", "streaming"]
-        for section in required_sections:
-            if section not in config:
-                print(f"✗ Missing required section: {section}")
-                return False
+        is_valid, issues = config.validate_config()
         
-        print("✓ All required sections present")
+        if is_valid:
+            print("✓ Configuration is valid")
+            
+            # Show enabled platforms
+            enabled_platforms = config.get_enabled_platforms()
+            if enabled_platforms:
+                print(f"✓ Enabled platforms: {', '.join(enabled_platforms.keys())}")
+        else:
+            print("✗ Configuration validation failed:")
+            for issue in issues:
+                print(f"  - {issue}")
         
-        # Check streaming platforms
-        platforms = config.get("streaming", {}).get("platforms", {})
-        enabled_platforms = [name for name, cfg in platforms.items() if cfg.get("enabled", False)]
-        
-        if not enabled_platforms:
-            print("✗ No streaming platforms enabled")
-            return False
-        
-        print(f"✓ Enabled platforms: {', '.join(enabled_platforms)}")
-        
-        # Check for placeholder stream keys
-        for platform_name, platform_config in platforms.items():
-            if platform_config.get("enabled", False):
-                stream_key = platform_config.get("stream_key", "")
-                if not stream_key or "YOUR_" in stream_key.upper():
-                    print(f"⚠ Warning: {platform_name} has placeholder stream key")
-        
-        return True
+        return is_valid
         
     except Exception as e:
         print(f"✗ Error validating config: {e}")
@@ -90,7 +78,7 @@ def check_dependencies():
     ]
     
     optional_packages = [
-        "obsws_python"
+        "obswebsocket"
     ]
     
     missing_required = []

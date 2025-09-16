@@ -112,5 +112,7 @@ dmypy.json
 
 # Application specific
 config.json
+config-test.json
+.env-test
 *.log
 .DS_Store
