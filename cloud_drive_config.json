@@ -1,35 +1,29 @@
 {
   "video_sources": {
     "odysee": {
-      "enabled": true,
-      "playlist_urls": [
-        "https://odysee.com/$/playlist/your-playlist-id"
-      ],
+      "enabled": false,
+      "playlist_urls": [],
       "api_base_url": "https://api.odysee.com"
     },
     "cloud_drive": {
-      "enabled": false,
+      "enabled": true,
       "files": [
         {
-          "url": "https://drive.google.com/file/d/YOUR_FILE_ID/view",
-          "title": "My Video Title",
+          "url": "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view",
+          "title": "Sample Google Drive Video",
           "duration": 300,
-          "description": "Video description"
+          "description": "Example video from Google Drive"
         },
         {
-          "url": "https://www.dropbox.com/s/YOUR_FILE_ID/video.mp4?dl=0",
-          "title": "Another Video",
-          "duration": 420
+          "url": "https://www.dropbox.com/s/samplefileid/video.mp4?dl=0",
+          "title": "Sample Dropbox Video",
+          "duration": 420,
+          "description": "Example video from Dropbox"
         },
-        "https://onedrive.live.com/download?cid=YOUR_CID&resid=YOUR_RESID"
+        "https://onedrive.live.com/download?cid=SAMPLE&resid=SAMPLE",
+        "https://example.com/direct-video-url.mp4"
       ]
     }
-  },
-  "odysee": {
-    "playlist_urls": [
-      "https://odysee.com/$/playlist/your-playlist-id"
-    ],
-    "api_base_url": "https://api.odysee.com"
   },
   "obs": {
     "websocket_host": "localhost",
@@ -39,7 +33,7 @@
   "streaming": {
     "platforms": {
       "rumble": {
-        "enabled": true,
+        "enabled": false,
         "rtmp_url": "rtmp://ingest.rumble.com/live/",
         "stream_key": "YOUR_RUMBLE_STREAM_KEY"
       },
@@ -60,6 +54,6 @@
   },
   "logging": {
     "level": "INFO",
-    "file": "livestream.log"
+    "file": "cloud_drive_example.log"
   }
 }
