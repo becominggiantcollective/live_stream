@@ -16,8 +16,9 @@ An automated live streaming bot that fetches videos from Odysee playlists and st
 
 ## Features
 
-- 🎬 **Odysee Integration**: Automatically fetch videos from Odysee playlists
+- 🎬 **Multiple Video Sources**: Fetch videos from Odysee playlists OR cloud storage (Google Drive, Dropbox, OneDrive)
 - 🎮 **OBS WebSocket Control**: Full control over OBS Studio via WebSocket API
+- ☁️ **Cloud Drive Integration**: Stream directly from cloud-hosted video files
 - 🌐 **Multi-Platform Streaming**: Stream to Rumble, YouTube, Twitch simultaneously
 - 🔄 **Auto-Reconnection**: Intelligent reconnection handling with exponential backoff
 - 📋 **Video Queue Management**: Smart queue with shuffle and replay functionality
@@ -66,10 +67,14 @@ python main.py
 
 The main configuration file contains:
 
-- **Odysee settings**: Playlist URLs and API configuration
+- **Video Sources**: Configure Odysee playlists and/or cloud drive files
+  - Odysee playlists: Traditional playlist URLs from Odysee
+  - Cloud drive files: Direct links from Google Drive, Dropbox, OneDrive, or direct URLs
 - **OBS settings**: WebSocket connection details
 - **Streaming platforms**: RTMP URLs and platform-specific settings
 - **Reconnection settings**: Retry attempts and delays
+
+See [CLOUD_DRIVE_SETUP.md](CLOUD_DRIVE_SETUP.md) for detailed cloud drive configuration.
 
 ### .env
 
@@ -98,8 +103,11 @@ python main.py --verbose
 ### Run Example
 
 ```bash
-# Run the example with sample videos
+# Run the standard example with Odysee playlists
 python example.py
+
+# Run the cloud drive example  
+python cloud_drive_example.py
 ```
 
 ### Monitor Streams
@@ -124,7 +132,8 @@ python main.py --validate-only
 The bot consists of several key components:
 
 - **ConfigManager**: Handles configuration loading and environment variables
-- **OdyseeClient**: Fetches videos from Odysee playlists
+- **OdyseeClient**: Fetches videos from Odysee playlists  
+- **CloudDriveClient**: Fetches videos from cloud storage services
 - **OBSController**: Controls OBS Studio via WebSocket API
 - **StreamManager**: Manages multi-platform streaming with reconnection
 - **VideoQueue**: Manages video queue with shuffle and replay logic
@@ -170,14 +179,16 @@ The bot consists of several key components:
    - Use `python main.py --validate-only` to check configuration
 
 3. **No Videos Found**
-   - Verify Odysee playlist URLs are correct and public
-   - Check internet connectivity for Odysee API access
-   - System will use sample videos if real API fails
+   - If using Odysee: Verify playlist URLs are correct and public
+   - If using cloud drive: Check that share URLs are accessible and public
+   - Check internet connectivity
+   - System will use sample videos if real sources fail
 
 4. **Configuration Issues**
    - Run `python setup.py` to validate your configuration
    - Check that stream keys are set in .env file
-   - Ensure playlist URLs are real, not placeholder values
+   - Ensure video source URLs are real, not placeholder values
+   - For cloud drive setup, see [CLOUD_DRIVE_SETUP.md](CLOUD_DRIVE_SETUP.md)
 
 ### Command Line Options
 
