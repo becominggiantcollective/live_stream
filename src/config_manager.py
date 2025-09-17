@@ -121,20 +121,54 @@ class ConfigManager:
         issues = []
         
         # Check required sections
-        required_sections = ['odysee', 'obs', 'streaming']
+        required_sections = ['obs', 'streaming']
         for section in required_sections:
             if section not in self.config_data:
                 issues.append(f"Missing required configuration section: {section}")
         
+        # Check if we have either video_sources or the legacy odysee section
+        has_video_sources = 'video_sources' in self.config_data
+        has_legacy_odysee = 'odysee' in self.config_data
+        
+        if not has_video_sources and not has_legacy_odysee:
+            issues.append("Missing video source configuration - need either 'video_sources' or 'odysee' section")
+        
+        # Check video source configuration
+        video_sources = self.get('video_sources', {})
+        odysee_config = video_sources.get('odysee', {}) if video_sources else self.get('odysee', {})
+        cloud_drive_config = video_sources.get('cloud_drive', {}) if video_sources else {}
+        
+        # Check if at least one video source is enabled
+        odysee_enabled = odysee_config.get('enabled', True)  # Default true for backwards compatibility
+        cloud_drive_enabled = cloud_drive_config.get('enabled', False)
+        
+        if not odysee_enabled and not cloud_drive_enabled:
+            issues.append("No video sources enabled - enable either Odysee or Cloud Drive")
+        
         # Check Odysee configuration
-        odysee_config = self.get('odysee', {})
-        playlist_urls = odysee_config.get('playlist_urls', [])
-        if not playlist_urls:
-            issues.append("No Odysee playlist URLs configured")
-        else:
-            for url in playlist_urls:
-                if url == "https://odysee.com/$/playlist/your-playlist-id":
-                    issues.append("Please replace placeholder Odysee playlist URL with real URL")
+        if odysee_enabled:
+            playlist_urls = odysee_config.get('playlist_urls', [])
+            if not playlist_urls:
+                issues.append("No Odysee playlist URLs configured")
+            else:
+                for url in playlist_urls:
+                    if url == "https://odysee.com/$/playlist/your-playlist-id":
+                        issues.append("Please replace placeholder Odysee playlist URL with real URL")
+        
+        # Check Cloud Drive configuration
+        if cloud_drive_enabled:
+            files = cloud_drive_config.get('files', [])
+            if not files:
+                issues.append("No cloud drive files configured")
+            else:
+                for file_info in files:
+                    if isinstance(file_info, str):
+                        if 'YOUR_FILE_ID' in file_info or 'YOUR_CID' in file_info:
+                            issues.append("Please replace placeholder cloud drive URLs with real URLs")
+                    elif isinstance(file_info, dict):
+                        url = file_info.get('url', '')
+                        if 'YOUR_FILE_ID' in url or 'YOUR_CID' in url:
+                            issues.append("Please replace placeholder cloud drive URLs with real URLs")
         
         # Check OBS configuration
         obs_config = self.get('obs', {})

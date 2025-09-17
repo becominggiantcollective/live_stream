@@ -16,6 +16,7 @@ from typing import List, Dict, Any
 
 from src.config_manager import ConfigManager
 from src.odysee_client import OdyseeClient
+from src.cloud_drive_client import CloudDriveClient
 from src.obs_controller import OBSController
 from src.stream_manager import StreamManager
 from src.video_queue import VideoQueue
@@ -31,6 +32,7 @@ class LiveStreamBot:
         self.setup_logging()
         
         self.odysee_client = OdyseeClient(self.config)
+        self.cloud_drive_client = CloudDriveClient(self.config)
         self.obs_controller = OBSController(self.config)
         self.stream_manager = StreamManager(self.config, self.obs_controller)
         self.video_queue = VideoQueue()
@@ -63,8 +65,8 @@ class LiveStreamBot:
             if not connected:
                 self.logger.warning("Could not connect to OBS - streaming will be simulated")
             
-            # Load playlists
-            await self.load_playlists()
+            # Load video sources
+            await self.load_video_sources()
             
             self.logger.info("Live Stream Bot initialized successfully")
             return True
@@ -73,11 +75,49 @@ class LiveStreamBot:
             self.logger.error(f"Failed to initialize Live Stream Bot: {e}")
             return False
     
-    async def load_playlists(self):
-        """Load videos from configured Odysee playlists."""
-        self.logger.info("Loading playlists from Odysee...")
+    async def load_video_sources(self):
+        """Load videos from configured sources (Odysee playlists and/or cloud drive files)."""
+        self.logger.info("Loading video sources...")
         
-        playlist_urls = self.config.get('odysee', {}).get('playlist_urls', [])
+        total_videos_loaded = 0
+        
+        # Check video sources configuration (new format)
+        video_sources = self.config.get('video_sources', {})
+        
+        # Load from Odysee if enabled
+        odysee_config = video_sources.get('odysee', {}) if video_sources else self.config.get('odysee', {})
+        odysee_enabled = odysee_config.get('enabled', True)  # Default true for backwards compatibility
+        
+        if odysee_enabled:
+            total_videos_loaded += await self.load_odysee_playlists(odysee_config)
+        
+        # Load from cloud drive if enabled
+        cloud_drive_config = video_sources.get('cloud_drive', {})
+        cloud_drive_enabled = cloud_drive_config.get('enabled', False)
+        
+        if cloud_drive_enabled:
+            total_videos_loaded += await self.load_cloud_drive_files(cloud_drive_config)
+        
+        self.logger.info(f"Total videos loaded from all sources: {total_videos_loaded}")
+        
+        # If no videos loaded, show helpful message
+        if total_videos_loaded == 0:
+            self.logger.warning("No videos loaded from any source. Please check your configuration.")
+            self.logger.warning("Enable either Odysee playlists or cloud drive files in your config.")
+    
+    async def load_odysee_playlists(self, odysee_config: Dict[str, Any]) -> int:
+        """Load videos from Odysee playlists.
+        
+        Args:
+            odysee_config: Odysee configuration
+            
+        Returns:
+            Number of videos loaded
+        """
+        self.logger.info("Loading videos from Odysee playlists...")
+        videos_loaded = 0
+        
+        playlist_urls = odysee_config.get('playlist_urls', [])
         
         for playlist_url in playlist_urls:
             try:
@@ -86,11 +126,39 @@ class LiveStreamBot:
                     self.video_queue.add_video(video)
                     
                 self.logger.info(f"Loaded {len(videos)} videos from playlist: {playlist_url}")
+                videos_loaded += len(videos)
                 
             except Exception as e:
                 self.logger.error(f"Failed to load playlist {playlist_url}: {e}")
         
-        self.logger.info(f"Total videos in queue: {self.video_queue.size()}")
+        return videos_loaded
+    
+    async def load_cloud_drive_files(self, cloud_drive_config: Dict[str, Any]) -> int:
+        """Load videos from cloud drive files.
+        
+        Args:
+            cloud_drive_config: Cloud drive configuration
+            
+        Returns:
+            Number of videos loaded
+        """
+        self.logger.info("Loading videos from cloud drive...")
+        videos_loaded = 0
+        
+        files = cloud_drive_config.get('files', [])
+        
+        try:
+            videos = await self.cloud_drive_client.get_video_files(files)
+            for video in videos:
+                self.video_queue.add_video(video)
+                
+            self.logger.info(f"Loaded {len(videos)} videos from cloud drive")
+            videos_loaded = len(videos)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load cloud drive files: {e}")
+        
+        return videos_loaded
     
     async def start_streaming(self):
         """Start the live streaming process."""
@@ -110,8 +178,8 @@ class LiveStreamBot:
                 if video:
                     await self.play_video(video)
                 else:
-                    # No more videos, reload playlists
-                    await self.load_playlists()
+                    # No more videos, reload video sources
+                    await self.load_video_sources()
                     if self.video_queue.is_empty():
                         self.logger.info("No more videos to stream. Stopping...")
                         break
@@ -148,6 +216,8 @@ class LiveStreamBot:
         try:
             await self.stream_manager.stop_streams()
             await self.obs_controller.disconnect()
+            await self.odysee_client.close()
+            await self.cloud_drive_client.close()
             self.logger.info("Live streaming stopped successfully")
             
         except Exception as e:
